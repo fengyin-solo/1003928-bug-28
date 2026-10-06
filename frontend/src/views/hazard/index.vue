@@ -24,6 +24,36 @@
       </span>
     </p>
 
+    <section class="settlement-stats">
+      <h3>搬迁统计</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>隐患点编号</th>
+            <th>隐患点名称</th>
+            <th>需搬迁户数</th>
+            <th>已搬迁户数</th>
+            <th>已安置户数</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in settlementStats" :key="item.隐患点编号">
+            <td>{{ item.隐患点编号 }}</td>
+            <td>{{ item.隐患点名称 }}</td>
+            <td>{{ item.need }}</td>
+            <td>{{ item.moved }}</td>
+            <td>{{ item.settled }}</td>
+          </tr>
+          <tr class="settlement-total">
+            <td colspan="2">合计</td>
+            <td>{{ settlementTotals.need }}</td>
+            <td>{{ settlementTotals.moved }}</td>
+            <td>{{ settlementTotals.settled }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -75,23 +105,31 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  evacuationStats,
+  evacuationStatsByHazard,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { EntryRow, EvacuationStats, HazardEvacuationStats } from '@/data/types'
 
 const meta = moduleMeta('hazard')
 const columns = ["隐患点编号", "隐患点名称", "灾害类型", "所在乡镇", "经纬度坐标", "威胁户数", "威胁人口", "隐患状态"]
 const actions = ["纳入监测", "启动治理", "申请核销"]
 const statuses = ["在册", "监测中", "已治理", "已核销", "新增"]
-const stats = [{"label": "隐患点总数", "value": 0}, {"label": "监测中数量", "value": 0}, {"label": "已治理数量", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = ref([
+  { label: '隐患点总数', value: 0 },
+  { label: '监测中数量', value: 0 },
+  { label: '已治理数量', value: 0 },
+])
+const settlementStats = ref<HazardEvacuationStats[]>([])
+const settlementTotals = ref<EvacuationStats>({ need: 0, moved: 0, settled: 0 })
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +166,15 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    const all = listEntries(meta.key).items
+    stats.value = [
+      { label: '隐患点总数', value: all.length },
+      { label: '监测中数量', value: all.filter((row) => String(row.status) === '监测中').length },
+      { label: '已治理数量', value: all.filter((row) => String(row.status) === '已治理').length },
+    ]
+    // 搬迁统计与避险搬迁页共用同一口径，刷新、返回、重新进入都一致。
+    settlementStats.value = evacuationStatsByHazard()
+    settlementTotals.value = evacuationStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '隐患点台账列表读取失败'
   }

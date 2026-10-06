@@ -9,6 +9,7 @@ const RainGauge = () => import('@/views/rain_gauge/index.vue')
 const Threshold = () => import('@/views/threshold/index.vue')
 const Alarm = () => import('@/views/alarm/index.vue')
 const Evacuation = () => import('@/views/evacuation/index.vue')
+const EvacuationDetail = () => import('@/views/evacuation/detail.vue')
 const Patrol = () => import('@/views/patrol/index.vue')
 const Engineering = () => import('@/views/engineering/index.vue')
 const Acceptance = () => import('@/views/acceptance/index.vue')
@@ -32,6 +33,7 @@ const router = createRouter({
     { path: '/threshold', name: 'threshold', component: Threshold },
     { path: '/alarm', name: 'alarm', component: Alarm },
     { path: '/evacuation', name: 'evacuation', component: Evacuation },
+    { path: '/evacuation/:id', name: 'evacuation-detail', component: EvacuationDetail },
     { path: '/patrol', name: 'patrol', component: Patrol },
     { path: '/engineering', name: 'engineering', component: Engineering },
     { path: '/acceptance', name: 'acceptance', component: Acceptance },
