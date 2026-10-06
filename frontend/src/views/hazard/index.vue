@@ -18,6 +18,33 @@
       </article>
     </div>
 
+    <section class="cross-stat">
+      <h3 class="section-title">避险搬迁统计（按隐患点，与避险搬迁列表/概览同源）</h3>
+      <table class="data-table">
+        <thead>
+          <tr><th>隐患点编号</th><th>隐患点名称</th><th>需搬迁户数</th><th>已搬迁户数</th><th>已安置户数</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in relocationRows" :key="row.hazard">
+            <td>{{ row.hazard }}</td>
+            <td>{{ row.name }}</td>
+            <td>{{ row.total }}</td>
+            <td>{{ row.moved }}</td>
+            <td>{{ row.resettled }}</td>
+          </tr>
+          <tr v-if="!relocationRows.length">
+            <td colspan="5" class="empty-state">暂无搬迁安置户</td>
+          </tr>
+          <tr class="summary-row">
+            <td colspan="2">合计</td>
+            <td>{{ evacuationTotals.total }}</td>
+            <td>{{ evacuationTotals.moved }}</td>
+            <td>{{ evacuationTotals.resettled }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <p class="status-legend">
       <span v-for="item in statusSummary" :key="item.status" class="legend-item">
         {{ item.status }}：{{ item.count }}
@@ -71,14 +98,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  evacuationStats,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { listRows, storageKey } from '@/data/local-store'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('hazard')
@@ -98,6 +127,37 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+// 搬迁统计直接引用避险搬迁的唯一统计口径，两边按隐患点编号归集，数字必然一致。
+const evacuationTotals = ref<{ total: number; moved: number; resettled: number }>({
+  total: 0,
+  moved: 0,
+  resettled: 0,
+})
+const relocationRows = ref<{ hazard: string; name: string; total: number; moved: number; resettled: number }[]>([])
+
+const hazardNameMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const row of listRows(meta.key)) {
+    map.set(String(row.隐患点编号 ?? ''), String(row.隐患点名称 ?? ''))
+  }
+  return map
+})
+
+function reloadEvacuationStats() {
+  const stats = evacuationStats()
+  evacuationTotals.value = { total: stats.total, moved: stats.moved, resettled: stats.resettled }
+  relocationRows.value = stats.byHazard.map((bucket) => ({
+    ...bucket,
+    name: hazardNameMap.value.get(bucket.hazard) ?? '台账中未登记',
+  }))
+}
+
+function onStorage(event: StorageEvent) {
+  if (event.key === storageKey()) {
+    reload()
+  }
+}
 
 function resetFilters() {
   filters.value = {}
@@ -128,10 +188,15 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    reloadEvacuationStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '隐患点台账列表读取失败'
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  reload()
+  window.addEventListener('storage', onStorage)
+})
+onBeforeUnmount(() => window.removeEventListener('storage', onStorage))
 </script>
